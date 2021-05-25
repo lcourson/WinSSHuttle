@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <StartupObject>WinSSHuttle.Program</StartupObject>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="PythonSrc\assembler-NoCompression.py" />
+    <None Remove="PythonSrc\assembler.py" />
+    <None Remove="PythonSrc\helpers.py" />
+    <None Remove="PythonSrc\hostwatch.py" />
+    <None Remove="PythonSrc\server.py" />
+    <None Remove="PythonSrc\sshuttle.py" />
+    <None Remove="PythonSrc\ssnet.py" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="PythonSrc\assembler-NoCompression.py" />
+    <EmbeddedResource Include="PythonSrc\assembler.py" />
+    <EmbeddedResource Include="PythonSrc\helpers.py" />
+    <EmbeddedResource Include="PythonSrc\hostwatch.py" />
+    <EmbeddedResource Include="PythonSrc\server.py" />
+    <EmbeddedResource Include="PythonSrc\sshuttle.py" />
+    <EmbeddedResource Include="PythonSrc\ssnet.py" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="IPNetwork2" Version="2.5.307" />
+    <PackageReference Include="PacketDotNet" Version="1.2.0" />
+    <PackageReference Include="System.CommandLine" Version="2.0.0-beta1.21216.1" />
+    <PackageReference Include="System.Security.Principal.Windows" Version="5.0.0" />
+    <PackageReference Include="WinDivertSharp" Version="1.4.3.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Drawing.Common">
+      <HintPath>..\..\..\..\..\..\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\3.1.15\System.Drawing.Common.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Windows.Forms">
+      <HintPath>..\..\..\..\..\..\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App\3.1.15\System.Windows.Forms.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="plink.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.31205.134
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WinSSHuttle", "WinSSHuttle\WinSSHuttle.csproj", "{CAA7F62D-F9FA-4A19-ABF8-14C78722892B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CAA7F62D-F9FA-4A19-ABF8-14C78722892B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CAA7F62D-F9FA-4A19-ABF8-14C78722892B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CAA7F62D-F9FA-4A19-ABF8-14C78722892B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CAA7F62D-F9FA-4A19-ABF8-14C78722892B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {DA404C8C-3C64-4B43-838C-21213E4FA079}
+	EndGlobalSection
+EndGlobal
