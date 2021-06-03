@@ -11,6 +11,7 @@ using System.CommandLine.Parsing;
 using System.Security.Principal;
 using System.Windows.Forms;
 using System.Drawing;
+using System.Threading.Tasks;
 
 namespace WinSSHuttle
 {
@@ -46,6 +47,18 @@ namespace WinSSHuttle
 				ColorConsole.WriteError("Application must be launched with administrative privileges... Exiting");
 				return -1;
 			}
+
+			Task.Run(() => {
+				while (!_mainTokenSource.IsCancellationRequested)
+				{
+					if (Console.ReadKey().Key == ConsoleKey.Enter)
+					{
+						ColorConsole.WriteLine("-----------------------------------------------", ConsoleColor.Green);
+						ColorConsole.WriteLine("-----------------------------------------------", ConsoleColor.Green);
+						ColorConsole.WriteLine("-----------------------------------------------", ConsoleColor.Green);
+					}
+				}
+			});
 
 			Console.CancelKeyPress += (sender, eventArgs) => {
 				if (!_cancelCalled)
@@ -147,7 +160,7 @@ namespace WinSSHuttle
 						}
 					}
 
-					var runner = new PLinkRunner(config);
+					var runner = new WinSSHuttleClient(config);
 					var start = runner.Start();
 
 					if (_useSysTray)
@@ -281,10 +294,13 @@ DryRun        : {config.DryRun}
 					server = rest;
 				}
 
-				var x = Dns.GetHostEntryAsync(server);
-				if (!x.Wait(2000))
+				if (!IPAddress.TryParse(server, out IPAddress _))
 				{
-					res.ErrorMessage = $"Unable to resolve Bastion Host: {server}";
+					var x = Dns.GetHostEntryAsync(server);
+					if (!x.Wait(2000))
+					{
+						res.ErrorMessage = $"Unable to resolve Bastion Host: {server}";
+					}
 				}
 			}
 

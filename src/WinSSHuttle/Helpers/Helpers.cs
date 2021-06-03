@@ -42,6 +42,11 @@ namespace WinSSHuttle
 			}
 		}
 
+		public static void LogDevDebug(string s)
+		{
+			ColorConsole.WriteWarning(s);
+		}
+
 		public static void LogError(string message)
 		{
 			if (OutputLevel > 2)
@@ -98,11 +103,11 @@ namespace WinSSHuttle
 
 			if (bastionName.Contains(":"))
 			{
-				bastionName = bastionName.Split(":")[0];
 				if (!int.TryParse(bastionName.Split(":")[1], out port))
 				{
 					port = 22;
 				}
+				bastionName = bastionName.Split(":")[0];
 			}
 
 			var ip = Dns.GetHostAddresses(bastionName).ToList();

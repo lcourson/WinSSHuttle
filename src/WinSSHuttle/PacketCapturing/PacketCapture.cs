@@ -11,18 +11,12 @@ using System.Threading.Tasks;
 
 using WinDivertSharp;
 
-namespace WinSSHuttle
+namespace WinSSHuttle.PacketCapturing
 {
-	public class WinTcpAddrPortMapping
-	{
-		public IPAddress OriginalSourceIP { get; set; }
-		public IPAddress OriginalDestinationIP { get; set; }
-		public ushort OriginalSourcePort { get; set; }
-		public ushort OriginalDestinationPort { get; set; }
-		public DateTime LastUsed { get; set; } = DateTime.Now;
-	}
 	public class PacketCapture
 	{
+		public bool LoggingEnabled { get; set; }
+
 		string _filter;
 		CancellationToken _token;
 		public bool IsCaptureActive { get; set; } = false;
@@ -33,6 +27,8 @@ namespace WinSSHuttle
 		private bool _closeCalled = false;
 
 		public string MessageHeader { get; set; } = "";
+
+		public Action<WinSSHuttlePacket> OnAcceptUDP;
 
 		private readonly Dictionary<uint, WinTcpAddrPortMapping> _v4TcpMapping = new Dictionary<uint, WinTcpAddrPortMapping>();
 		private ManualResetEvent _captureClosed = new ManualResetEvent(false);
@@ -91,18 +87,24 @@ namespace WinSSHuttle
 			};
 			WinDivertBuffer packet = new WinDivertBuffer(ip4.Bytes);
 
-			if (Helpers.OutputLevel > 3)
+			if (LoggingEnabled)
 			{
-				Helpers.Debug4($"{MessageHeader}{ip4.ToString(StringOutputType.Verbose)}");
-			}
-			else
-			{
-				Helpers.Debug3($"{MessageHeader}{ip4}");
+				if (Helpers.OutputLevel > 3)
+				{
+					Helpers.Debug4($"{MessageHeader}{ip4.ToString(StringOutputType.Verbose)}");
+				}
+				else
+				{
+					Helpers.Debug3($"{MessageHeader}{ip4}");
+				}
 			}
 
 			if (!WinDivert.WinDivertSend(_ptr, packet, (uint)ip4.TotalPacketLength, ref addr))
 			{
-				Helpers.LogError($"{MessageHeader}Relaying Inbound UDP Response Err: {Marshal.GetLastWin32Error()}");
+				if (LoggingEnabled)
+				{
+					Helpers.LogError($"{MessageHeader}Relaying Inbound UDP Response Err: {Marshal.GetLastWin32Error()}");
+				}
 			}
 		}
 
@@ -112,14 +114,20 @@ namespace WinSSHuttle
 			{
 				try
 				{
-					Helpers.Debug1($"{MessageHeader}Starting Packet Capture -> {_filter}");
+					if (LoggingEnabled)
+					{
+						Helpers.Debug1($"{MessageHeader}Starting Packet Capture -> {_filter}");
+					}
 					var packet = new WinDivertBuffer();
 					var address = new WinDivertAddress();
 					uint length = 0;
 					_ptr = WinDivert.WinDivertOpen(_filter, WinDivertLayer.Network, (short)priority, WinDivertOpenFlags.None);
 					while (IsCaptureActive && _ptr != default)
 					{
-						Helpers.Debug4($"C     : {MessageHeader}Looking for Packet...");
+						if (LoggingEnabled)
+						{
+							Helpers.Debug4($"C     : {MessageHeader}Looking for Packet...");
+						}
 						if (!WinDivert.WinDivertRecv(_ptr, packet, ref address, ref length))
 						{
 							var err = Marshal.GetLastWin32Error();
@@ -142,11 +150,17 @@ namespace WinSSHuttle
 
 						if (Helpers.OutputLevel > 3)
 						{
-							Helpers.Debug4($"C     : {MessageHeader}IPv4 Packet: {ip.ToString(StringOutputType.Verbose)}");
+							if (LoggingEnabled)
+							{
+								Helpers.Debug4($"C     : {MessageHeader}IPv4 Packet: {ip.ToString(StringOutputType.Verbose)}");
+							}
 						}
 						else
 						{
-							Helpers.Debug3($"C     : {MessageHeader}IPv4 Packet: {ip}");
+							if (LoggingEnabled)
+							{
+								Helpers.Debug3($"C     : {MessageHeader}IPv4 Packet: {ip}");
+							}
 						}
 
 						if (ip.PayloadPacket is TcpPacket)
@@ -161,7 +175,10 @@ namespace WinSSHuttle
 							}
 							else
 							{
-								Helpers.Debug2($"C     : Accept TCP: {ip.SourceAddress}:{tPacket.SourcePort} -> {ip.DestinationAddress}:{tPacket.DestinationPort}");
+								if (LoggingEnabled)
+								{
+									Helpers.Debug2($"C     : Accept TCP: {ip.SourceAddress}:{tPacket.SourcePort} -> {ip.DestinationAddress}:{tPacket.DestinationPort}");
+								}
 								RelayTCPToTProxy(ip, address.IfIdx, address.SubIfIdx);
 							}
 						}
@@ -170,12 +187,26 @@ namespace WinSSHuttle
 						{
 							UdpPacket uPacket = ip.PayloadPacket as UdpPacket;
 
-							Helpers.Debug2($"C     : Accept UDP: {ip.SourceAddress}:{uPacket.SourcePort} -> {ip.DestinationAddress}:{uPacket.DestinationPort}");
+							if (LoggingEnabled)
+							{
+								Helpers.Debug2($"C     : Accept UDP: {ip.SourceAddress}:{uPacket.SourcePort} -> {ip.DestinationAddress}:{uPacket.DestinationPort}");
+							}
+
+							OnAcceptUDP?.Invoke(new WinSSHuttlePacket() {
+								SrcIP = ip.SourceAddress,
+								SrcPort = uPacket.SourcePort,
+								DstIP = ip.DestinationAddress,
+								DstPort = uPacket.DestinationPort,
+								Payload = uPacket.PayloadData,
+								Ifx = address.IfIdx,
+								SubIfx = address.SubIfIdx
+							});
+
 							OutgoingUDPQueue.Enqueue(new WinSSHuttlePacket()
 							{
-								SourceIP = ip.SourceAddress,
+								SrcIP = ip.SourceAddress,
 								SrcPort = uPacket.SourcePort,
-								DestIP = ip.DestinationAddress,
+								DstIP = ip.DestinationAddress,
 								DstPort = uPacket.DestinationPort,
 								Payload = uPacket.PayloadData,
 								Ifx = address.IfIdx,
@@ -186,13 +217,19 @@ namespace WinSSHuttle
 				}
 				catch (Exception e)
 				{
-					Helpers.LogError($"{MessageHeader}Capture Packet Exception: {e}");
+					if (LoggingEnabled)
+					{
+						Helpers.LogError($"{MessageHeader}Capture Packet Exception: {e}");
+					}
 				}
 				finally
 				{
 					if (_ptr != default)
 					{
-						Helpers.Debug2($"{MessageHeader}Closing packet capture connection");
+						if (LoggingEnabled)
+						{
+							Helpers.Debug2($"{MessageHeader}Closing packet capture connection");
+						}
 						if (!_closeCalled)
 						{
 							_closeCalled = true;
@@ -205,7 +242,10 @@ namespace WinSSHuttle
 
 		private unsafe WinDivertAddress RelayTcpFromTProxy(WinDivertAddress address, IPv4Packet ip, TcpPacket tPacket)
 		{
-			Helpers.Debug4($"{MessageHeader}Looks like a response from TProxy");
+			if (LoggingEnabled)
+			{
+				Helpers.Debug4($"{MessageHeader}Looks like a response from TProxy");
+			}
 
 			WinTcpAddrPortMapping mapping = default;
 
@@ -213,29 +253,42 @@ namespace WinSSHuttle
 			{
 				mapping = _v4TcpMapping[tPacket.AcknowledgmentNumber];
 				_v4TcpMapping[tPacket.AcknowledgmentNumber].LastUsed = DateTime.Now;
-				Helpers.Debug4($"FromTProxy - Found mapping for id: {tPacket.AcknowledgmentNumber}");
+				if (LoggingEnabled)
+				{
+					Helpers.Debug4($"FromTProxy - Found mapping for id: {tPacket.AcknowledgmentNumber}");
+				}
 			}
 
-			var toRemove = _v4TcpMapping.Where((m) => m.Value.LastUsed < DateTime.Now.AddSeconds(-30));
+			var toRemove = _v4TcpMapping.Where((m) => m.Value.LastUsed < DateTime.Now.AddSeconds(-30)).ToArray();
 			foreach(var r in toRemove)
 			{
-				Helpers.Debug4($"FromTProxy - Removing mapping for id: {r.Key}");
+				if (LoggingEnabled)
+				{
+					Helpers.Debug4($"FromTProxy - Removing mapping for id: {r.Key}");
+				}
 				_v4TcpMapping.Remove(r.Key);
 			}
 
 			if (mapping != default)
 			{
-				Helpers.Debug4($"{MessageHeader}Found TcpResponse Packet Mapping");
+				if (LoggingEnabled)
+				{
+					Helpers.Debug4($"{MessageHeader}Found TcpResponse Packet Mapping");
+				}
 				ip.SourceAddress = ip.DestinationAddress;
 				tPacket.SourcePort = tPacket.DestinationPort;
 				ip.DestinationAddress = mapping.OriginalSourceIP;
 				tPacket.DestinationPort = mapping.OriginalSourcePort;
 
+				//Helpers.LogDevDebug($"Payload: {Encoding.UTF8.GetString(tPacket.PayloadData)}");
 				if (!tPacket.Acknowledgment)
 				{
 					if (!_v4TcpMapping.ContainsKey(tPacket.SequenceNumber + (uint)tPacket.PayloadData.Length + 1))
 					{
-						Helpers.Debug4($"FromTProxy - Adding mapping for id: {tPacket.SequenceNumber + (uint)tPacket.PayloadData.Length + 1}");
+						if (LoggingEnabled)
+						{
+							Helpers.Debug4($"FromTProxy - Adding mapping for id: {tPacket.SequenceNumber + (uint)tPacket.PayloadData.Length + 1}");
+						}
 						_v4TcpMapping[tPacket.SequenceNumber + (uint)tPacket.PayloadData.Length + 1] = mapping;
 					}
 				}
@@ -245,7 +298,10 @@ namespace WinSSHuttle
 				var sumsCalculated = WinDivert.WinDivertHelperCalcChecksums(tcpResponsePacket, tcpResponsePacket.Length, ref address, WinDivertChecksumHelperParam.All);
 				if (sumsCalculated <= 0)
 				{
-					Helpers.LogError("Modified packet reported that no checksums were calculated");
+					if (LoggingEnabled)
+					{
+						Helpers.LogError("Modified packet reported that no checksums were calculated");
+					}
 				}
 
 				//if (Helpers.OutputLevel > 3)
@@ -254,18 +310,30 @@ namespace WinSSHuttle
 				//}
 				//else
 				//{
+				if (LoggingEnabled)
+				{
 					Helpers.Debug4($"C     : {MessageHeader}RELAY From TPROXY: {ip}");
+				}
 				//}
 
-				Helpers.Debug2($"C     : {MessageHeader}Redirecting TCP Response: {ip.SourceAddress}:{(ip.PayloadPacket as TcpPacket).SourcePort} -> {ip.DestinationAddress}:{(ip.PayloadPacket as TcpPacket).DestinationPort}");
+				if (LoggingEnabled)
+				{
+					Helpers.Debug2($"C     : {MessageHeader}Redirecting TCP Response: {ip.SourceAddress}:{(ip.PayloadPacket as TcpPacket).SourcePort} -> {ip.DestinationAddress}:{(ip.PayloadPacket as TcpPacket).DestinationPort}");
+				}
 				if (!WinDivert.WinDivertSendEx(_ptr, tcpResponsePacket, tcpResponsePacket.Length, 0, ref address))
 				{
-					Helpers.LogError($"{MessageHeader}Relaying Inbound TCP Response Err: {Marshal.GetLastWin32Error()}");
+					if (LoggingEnabled)
+					{
+						Helpers.LogError($"{MessageHeader}Relaying Inbound TCP Response Err: {Marshal.GetLastWin32Error()}");
+					}
 				}
 			}
 			else
 			{
-				Helpers.LogError($"Unable to find a TCP mapping for {tPacket.AcknowledgmentNumber}");
+				if (LoggingEnabled)
+				{
+					Helpers.LogError($"Unable to find a TCP mapping for {tPacket.AcknowledgmentNumber}");
+				}
 			}
 
 
@@ -289,7 +357,10 @@ namespace WinSSHuttle
 			{
 				if (!_v4TcpMapping.ContainsKey(tPacket.SequenceNumber + (uint)tPacket.PayloadData.Length))
 				{
-					Helpers.Debug4($"C     : {MessageHeader}ToTProxy - Adding mapping for id: {tPacket.SequenceNumber + (uint)tPacket.PayloadData.Length}");
+					if (LoggingEnabled)
+					{
+						Helpers.Debug4($"C     : {MessageHeader}ToTProxy - Adding mapping for id: {tPacket.SequenceNumber + (uint)tPacket.PayloadData.Length}");
+					}
 					_v4TcpMapping[tPacket.SequenceNumber + (uint)tPacket.PayloadData.Length] = mapping;
 				}
 			}
@@ -297,7 +368,10 @@ namespace WinSSHuttle
 			{
 				if (!_v4TcpMapping.ContainsKey(tPacket.SequenceNumber + 1))
 				{
-					Helpers.Debug4($"C     : {MessageHeader}ToTProxy - Adding mapping for id: {tPacket.SequenceNumber + 1}");
+					if (LoggingEnabled)
+					{
+						Helpers.Debug4($"C     : {MessageHeader}ToTProxy - Adding mapping for id: {tPacket.SequenceNumber + 1}");
+					}
 					_v4TcpMapping[tPacket.SequenceNumber + 1] = mapping;
 				}
 			}
@@ -329,13 +403,22 @@ namespace WinSSHuttle
 			//}
 			//else
 			//{
+			if (LoggingEnabled)
+			{
 				Helpers.Debug3($"C     : {MessageHeader}RELAY To TPROXY: {ip}");
+			}
 			//}
 
-			Helpers.Debug2($"C     : Redirecting TCP: {ip.SourceAddress}:{(ip.PayloadPacket as TcpPacket).SourcePort} -> {ip.DestinationAddress}:{(ip.PayloadPacket as TcpPacket).DestinationPort}");
+			if (LoggingEnabled)
+			{
+				Helpers.Debug2($"C     : Redirecting TCP: {ip.SourceAddress}:{(ip.PayloadPacket as TcpPacket).SourcePort} -> {ip.DestinationAddress}:{(ip.PayloadPacket as TcpPacket).DestinationPort}");
+			}
 			if (!WinDivert.WinDivertSendEx(_ptr, packet, packet.Length, 0, ref addr))
 			{
-				Helpers.LogError($"{MessageHeader}Relaying Outbound TCP Response Err: {Marshal.GetLastWin32Error()}");
+				if (LoggingEnabled)
+				{
+					Helpers.LogError($"{MessageHeader}Relaying Outbound TCP Response Err: {Marshal.GetLastWin32Error()}");
+				}
 			}
 		}
 	}

@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 
 namespace WinSSHuttle
 {
-	public delegate void NewConnectionHandler(Socket s);
 	public class TProxy
 	{
 		public int ProxyPort { get; private set; }
@@ -18,7 +17,7 @@ namespace WinSSHuttle
 		private readonly ManualResetEvent _serverDone = new ManualResetEvent(false);
 		private readonly CancellationToken _token;
 
-		public event NewConnectionHandler OnNewConnection;
+		public Action<Socket> OnNewConnection;
 
 		public bool ServerReady { get; set; } = false;
 
